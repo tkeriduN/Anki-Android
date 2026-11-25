@@ -67,6 +67,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import org.intellij.lang.annotations.Language
+import org.json.JSONObject
 import timber.log.Timber
 import kotlin.time.Duration.Companion.seconds
 import com.ichi2.anki.common.destinations.Destination as NavigateDestination
@@ -120,6 +121,32 @@ class ReviewerViewModel(
     private var typedAnswer = ""
 
     private val autoAdvance = AutoAdvance(viewModelScope, this, currentCard)
+
+    /**
+     * Whether an `<audio>` or `<video>` element in the HTML of the card is playing,
+     * like one started by a script of the card template.
+     *
+     * `[sound:]` tags aren't included: see [cardMediaPlayer].
+     */
+    @Volatile
+    private var isHtmlMediaPlaying = false
+
+    /** Sequence number of the last handled `htmlMediaStateChanged` request */
+    @Volatile
+    private var lastHtmlMediaStateSequence = -1L
+
+    /**
+     * Whether the auto advance countdown of the current card side was requested,
+     * so HTML media may hold it, and restart it once it stops playing.
+     *
+     * @see startAutoAdvanceCountdown
+     * @see onHtmlMediaStateChanged
+     */
+    @Volatile
+    private var isAutoAdvanceCountdownDue = false
+
+    /** Serializes the changes of the auto advance countdown caused by media */
+    private val autoAdvanceMutex = Mutex()
     private val isHtmlTypeAnswerEnabled = repository.isHtmlTypeAnswerEnabled
     val answerTimer = AnswerTimer()
     private val actionsMutex = Mutex()
@@ -153,17 +180,15 @@ class ReviewerViewModel(
         }
         cardMediaPlayer.setOnMediaGroupCompletedListener {
             if (!autoAdvance.shouldWaitForAudio()) return@setOnMediaGroupCompletedListener
-
-            if (showingAnswer.value) {
-                autoAdvance.onShowAnswer()
-            } else {
-                autoAdvance.onShowQuestion()
-            }
+            startAutoAdvanceCountdown()
         }
     }
 
     override fun onPageFinished(isAfterRecreation: Boolean) {
         Timber.v("ReviewerViewModel::onPageFinished %b", isAfterRecreation)
+        // the page was (re)loaded: nothing is playing and its script restarts the sequence
+        isHtmlMediaPlaying = false
+        lastHtmlMediaStateSequence = -1L
         if (isAfterRecreation) {
             launchCatchingIO {
                 // TODO handle "Don't keep activities"
@@ -225,6 +250,7 @@ class ReviewerViewModel(
         } ?: ""
 
         updateNextTimes()
+        onCardSideChangeForAutoAdvance()
         showAnswer()
         loadAndPlayMedia(CardSide.ANSWER)
         if (!autoAdvance.shouldWaitForAudio()) {
@@ -416,7 +442,72 @@ class ReviewerViewModel(
 
     fun stopAutoAdvance() {
         Timber.v("ReviewerViewModel::stopAutoAdvance")
+        // HTML media that stops later doesn't resume auto advance
+        isAutoAdvanceCountdownDue = false
         autoAdvance.cancelQuestionAndAnswerActionJobs()
+    }
+
+    /** The countdown of the previous side is no longer due: media of that side can't start it */
+    private suspend fun onCardSideChangeForAutoAdvance() =
+        autoAdvanceMutex.withLock {
+            isAutoAdvanceCountdownDue = false
+        }
+
+    /**
+     * Starts the auto advance countdown of the current card side.
+     *
+     * If 'Wait for audio' is enabled and media in the HTML of the card is playing,
+     * the countdown starts once it stops. See [onHtmlMediaStateChanged]
+     */
+    private suspend fun startAutoAdvanceCountdown() =
+        autoAdvanceMutex.withLock {
+            isAutoAdvanceCountdownDue = true
+            if (isHtmlMediaPlaying && autoAdvance.shouldWaitForAudio()) {
+                Timber.v("auto advance: waiting for HTML media")
+                return@withLock
+            }
+            restartAutoAdvanceCountdown()
+        }
+
+    private suspend fun restartAutoAdvanceCountdown() {
+        // a countdown of this side may be running: don't run its action twice
+        autoAdvance.cancelQuestionAndAnswerActionJobs()
+        if (showingAnswer.value) {
+            autoAdvance.onShowAnswer()
+        } else {
+            autoAdvance.onShowQuestion()
+        }
+    }
+
+    /**
+     * Called when `<audio>` or `<video>` elements in the HTML of the card start playing,
+     * or when all of them have stopped. `[sound:]` tags aren't reported.
+     *
+     * If 'Wait for audio' is enabled, the auto advance countdown is held while they play,
+     * and it (re)starts when they stop, so media played by a script of the card template
+     * is waited for, even if it is played as a sequence with gaps.
+     *
+     * @param bytes JSON with `isPlaying` and `sequence`. See `ankidroid-reviewer.js`
+     */
+    private suspend fun onHtmlMediaStateChanged(bytes: ByteArray) {
+        val state = JSONObject(bytes.decodeToString())
+        val sequence = state.getLong("sequence")
+        val isPlaying = state.getBoolean("isPlaying")
+        autoAdvanceMutex.withLock {
+            if (sequence <= lastHtmlMediaStateSequence) return
+            lastHtmlMediaStateSequence = sequence
+            isHtmlMediaPlaying = isPlaying
+            Timber.v("ReviewerViewModel::onHtmlMediaStateChanged isPlaying=%b", isPlaying)
+
+            // if the countdown isn't due, it starts as usual, e.g. after the `[sound:]` tags
+            if (!isAutoAdvanceCountdownDue || !autoAdvance.shouldWaitForAudio()) return
+            if (isPlaying) {
+                // the countdown may be running, like in the gap between two clips
+                autoAdvance.cancelQuestionAndAnswerActionJobs()
+            } else {
+                restartAutoAdvanceCountdown()
+            }
+        }
     }
 
     private suspend fun toggleAutoAdvance() {
@@ -432,12 +523,7 @@ class ReviewerViewModel(
         actionFeedbackFlow.emit(message)
 
         if (autoAdvance.shouldWaitForAudio() && cardMediaPlayer.isPlaying) return
-
-        if (showingAnswer.value) {
-            autoAdvance.onShowAnswer()
-        } else {
-            autoAdvance.onShowQuestion()
-        }
+        startAutoAdvanceCountdown()
     }
 
     override suspend fun handlePostRequest(
@@ -458,6 +544,10 @@ class ReviewerViewModel(
                 onStateMutationCallback()
                 return byteArrayOf()
             }
+            "htmlMediaStateChanged" -> {
+                onHtmlMediaStateChanged(bytes)
+                return byteArrayOf()
+            }
         }
         return when (uri.backendMethodName) {
             "getSchedulingStatesWithContext" -> getSchedulingStatesWithContext()
@@ -473,6 +563,7 @@ class ReviewerViewModel(
         if (mutationSignal.isCompleted) {
             mutationSignal = CompletableDeferred()
         }
+        onCardSideChangeForAutoAdvance()
         super.showQuestion()
         runStateMutationHook()
         updateMarkIcon()

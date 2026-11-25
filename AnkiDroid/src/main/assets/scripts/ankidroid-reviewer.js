@@ -88,6 +88,94 @@ globalThis.ankidroid.onTypeAnswerKeyDown = function (event) {
 })();
 
 // ============================================================================
+// HTML media playback listeners
+// ============================================================================
+
+/**
+ * Tells the app whether an `<audio>` or `<video>` element of the card is playing,
+ * e.g. one started by a script of the card template, so auto advance can wait for it.
+ *
+ * `[sound:]` tags are not reported: the app plays them and already knows their state.
+ */
+(() => {
+    /** @type {Set<HTMLMediaElement>} */
+    const playing = new Set();
+    /** Lets the app discard notifications that arrive out of order */
+    let sequence = 0;
+
+    function notify() {
+        fetch("ankidroid/htmlMediaStateChanged", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ isPlaying: playing.size > 0, sequence: sequence++ }),
+        }).catch(err => console.log("Failed to reach local server:", err));
+    }
+
+    /**
+     * @param {EventTarget} target
+     * @returns {boolean} whether auto advance should wait for the playback of `target`
+     */
+    function isTracked(target) {
+        return (
+            target instanceof HTMLMediaElement &&
+            // a video of a `[sound:]` tag
+            !target.hasAttribute("data-play") &&
+            // would never end, or can't be heard
+            !target.loop &&
+            !target.muted
+        );
+    }
+
+    document.addEventListener(
+        "play",
+        event => {
+            const media = event.target;
+            if (!isTracked(media) || playing.has(media)) return;
+            playing.add(media);
+            if (playing.size === 1) notify();
+        },
+        // media events don't bubble
+        true,
+    );
+
+    /** @param {EventTarget} media */
+    function onStop(media) {
+        if (playing.delete(media) && playing.size === 0) notify();
+    }
+    for (const type of ["pause", "ended", "emptied"]) {
+        document.addEventListener(type, event => onStop(event.target), true);
+    }
+    document.addEventListener(
+        "error",
+        event => {
+            const target = event.target;
+            if (!(target instanceof HTMLSourceElement)) {
+                onStop(target);
+                return;
+            }
+            // the media only fails once none of its sources can be played
+            const media = target.parentElement;
+            setTimeout(() => {
+                if (media?.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) onStop(media);
+            });
+        },
+        true,
+    );
+
+    // Media removed from the page, like when the card side changes, keeps playing,
+    // but its events no longer reach the document.
+    new MutationObserver(() => {
+        if (playing.size === 0) return;
+        for (const media of playing) {
+            if (!media.isConnected) playing.delete(media);
+        }
+        if (playing.size === 0) notify();
+    }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+
+// ============================================================================
 // Gesture detection
 // ============================================================================
 
