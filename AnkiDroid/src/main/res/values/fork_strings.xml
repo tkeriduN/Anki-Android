@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings of features that only exist in this fork. They aren't translated. -->
+<resources>
+    <string name="empty_preview_decks_on_exit" translatable="false">Empty preview decks on exit</string>
+    <string name="empty_preview_decks_on_exit_summ" translatable="false">When the study screen is closed, return the cards of a filtered deck that doesn\'t reschedule to their home decks</string>
+</resources>

@@ -72,6 +72,13 @@
             android:icon="@drawable/ic_play_circle_white"
             />
 
+        <SwitchPreferenceCompat
+            android:key="@string/empty_preview_decks_on_exit_key"
+            android:title="@string/empty_preview_decks_on_exit"
+            android:summary="@string/empty_preview_decks_on_exit_summ"
+            android:defaultValue="false"
+            />
+
         <Preference
             android:key="@string/answer_buttons_settings_key"
             android:title="@string/answer_buttons"

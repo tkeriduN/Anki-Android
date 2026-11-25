@@ -390,6 +390,7 @@ open class PrefsRepository protected constructor(
     val ignoreDisplayCutout by booleanPref(R.string.ignore_display_cutout_key, false)
     val autoFocusTypeAnswer by booleanPref(R.string.type_in_answer_focus_key, true)
     val showAnswerFeedback by booleanPref(R.string.show_answer_feedback_key, defaultValue = true)
+    val emptyPreviewDecksOnExit by booleanPref(R.string.empty_preview_decks_on_exit_key, defaultValue = false)
     var showAnswerButtons by booleanPref(R.string.show_answer_buttons_key, true)
     val keepScreenOn by booleanPref(R.string.keep_screen_on_preference, defaultValue = false)
     var hideHardAndEasyButtons by booleanPref(R.string.hide_hard_and_easy_key, defaultValue = false)

@@ -21,6 +21,7 @@ class StudyScreenRepository(
     var isWhiteboardEnabled by prefs.booleanPref(PREF_WHITEBOARD_ENABLED, false)
     var isRecordVoiceEnabled by prefs.booleanPref(PREF_RECORD_VOICE_ENABLED, false)
     val isHtmlTypeAnswerEnabled get() = prefs.isHtmlTypeAnswerEnabled
+    val shouldEmptyPreviewDecksOnExit get() = prefs.emptyPreviewDecksOnExit
 
     init {
         val actions =

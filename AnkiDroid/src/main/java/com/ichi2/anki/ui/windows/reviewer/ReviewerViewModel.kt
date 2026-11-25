@@ -17,6 +17,7 @@ import com.ichi2.anki.asyncIO
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.cardviewer.appendNoSuggestAttributes
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.destinations.BrowserDestination
 import com.ichi2.anki.common.destinations.CardInfoDestination
 import com.ichi2.anki.common.destinations.CardInfoDestination.EntryPoint
@@ -63,6 +64,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -168,9 +170,14 @@ class ReviewerViewModel(
     val answerButtonsNextTimeFlow: MutableStateFlow<AnswerButtonsNextTime?> = MutableStateFlow(null)
     private val shouldShowNextTimes = asyncIO { repository.getShouldShowNextTimes() }
 
+    /** The deck that is studied: the one that was selected when the screen was opened */
+    @Volatile
+    private var studiedDeckId: DeckId? = null
+
     init {
         ChangeManager.subscribe(this)
         launchCatchingIO {
+            studiedDeckId = withCol { decks.getCurrentId() }
             withCol { startTimebox() }
             updateUndoAndRedoLabels()
             // The height of the answer buttons may increase if `Show button time` is enabled.
@@ -207,6 +214,25 @@ class ReviewerViewModel(
         } else {
             launchCatchingIO {
                 updateCurrentCard()
+            }
+        }
+    }
+
+    /**
+     * Called when the study screen is closed, but not when it is recreated.
+     *
+     * @see emptyPreviewDeck
+     */
+    override fun onCleared() {
+        super.onCleared()
+        val deckId = studiedDeckId ?: return
+        if (!repository.shouldEmptyPreviewDecksOnExit) return
+        // viewModelScope is canceled at this point
+        applicationScope.launch {
+            try {
+                emptyPreviewDeck(deckId)
+            } catch (e: Exception) {
+                Timber.w(e, "failed to empty the preview deck")
             }
         }
     }
