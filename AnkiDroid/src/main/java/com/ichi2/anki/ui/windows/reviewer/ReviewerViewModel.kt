@@ -224,7 +224,6 @@ class ReviewerViewModel(
      * @see emptyPreviewDeck
      */
     override fun onCleared() {
-        super.onCleared()
         val deckId = studiedDeckId ?: return
         if (!repository.shouldEmptyPreviewDecksOnExit) return
         // viewModelScope is canceled at this point
