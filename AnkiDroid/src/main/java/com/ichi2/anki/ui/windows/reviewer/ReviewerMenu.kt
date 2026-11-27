@@ -137,6 +137,20 @@ fun ReviewerMenuView.setup(
             }.launchIn(lifecycle.coroutineScope)
     }
 
+    findItem(ViewerAction.TOGGLE_BACKGROUND_LISTENING.menuId)?.let { backgroundListeningItem ->
+        viewModel.isBackgroundListeningEnabledFlow
+            .flowWithLifecycle(lifecycle)
+            .onEach { isEnabled ->
+                if (isEnabled) {
+                    backgroundListeningItem.setPaddedIcon(context, R.drawable.ic_headphones)
+                    backgroundListeningItem.setTitle(R.string.disable_background_listening)
+                } else {
+                    backgroundListeningItem.setPaddedIcon(context, R.drawable.ic_headphones_outlined)
+                    backgroundListeningItem.setTitle(R.string.enable_background_listening)
+                }
+            }.launchIn(lifecycle.coroutineScope)
+    }
+
     findItem(ViewerAction.TOGGLE_AUTO_ADVANCE.menuId)?.let { autoAdvanceItem ->
         val isAutoAdvancedEnabledFlow = viewModel.isAutoAdvanceEnabledFlow.flowWithLifecycle(lifecycle)
         isAutoAdvancedEnabledFlow

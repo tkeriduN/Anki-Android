@@ -172,5 +172,6 @@ object AnalyticsConstants {
             R.string.new_reviewer_options_key,
             R.string.show_answer_feedback_key,
             R.string.empty_preview_decks_on_exit_key,
+            R.string.continue_auto_advance_in_background_key,
         )
 }

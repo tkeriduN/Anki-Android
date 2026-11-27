@@ -64,6 +64,7 @@ enum class ViewerAction(
     RESCHEDULE_NOTE(R.id.action_set_due_date, R.drawable.ic_reschedule, DISABLED),
     RESET_PROGRESS(R.id.action_reset_progress, R.drawable.ic_backup_restore, DISABLED),
     TOGGLE_AUTO_ADVANCE(R.id.action_toggle_auto_advance, R.drawable.ic_fast_forward_outlined, DISABLED),
+    TOGGLE_BACKGROUND_LISTENING(R.id.action_toggle_background_listening, R.drawable.ic_headphones_outlined, DISABLED),
     RECORD_VOICE(R.id.action_record_voice, R.drawable.ic_mic_outlined, DISABLED),
     PLAY_MEDIA(R.id.action_replay_media, R.drawable.ic_play_circle_white, DISABLED),
     USER_ACTION_1(R.id.user_action_1, R.drawable.user_action_1, DISABLED),
@@ -216,6 +217,7 @@ enum class ViewerAction(
             EXIT,
             RESCHEDULE_NOTE,
             TOGGLE_WHITEBOARD,
+            TOGGLE_BACKGROUND_LISTENING,
             PAGE_UP,
             PAGE_DOWN,
             USER_ACTION_1,
@@ -268,6 +270,7 @@ enum class ViewerAction(
                 TAG -> getString(CommonString.menu_edit_tags)
                 RESET_PROGRESS -> getString(CommonString.card_editor_reset_card)
                 TOGGLE_AUTO_ADVANCE -> getString(CommonString.toggle_auto_advance)
+                TOGGLE_BACKGROUND_LISTENING -> getString(R.string.toggle_background_listening)
                 RECORD_VOICE -> getString(CommonString.record_voice)
                 PLAY_MEDIA -> getString(CommonString.replay_media)
                 USER_ACTION_1 -> getString(CommonString.user_action_1)

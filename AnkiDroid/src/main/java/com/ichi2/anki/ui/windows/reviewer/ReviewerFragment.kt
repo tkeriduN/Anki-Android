@@ -32,6 +32,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commit
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.ichi2.anki.CollectionManager
@@ -139,15 +140,18 @@ class ReviewerFragment :
     override fun onStart() {
         super.onStart()
         shakeDetector?.start()
+        viewModel.refreshBackgroundListeningSetting()
     }
 
     override fun onStop() {
         super.onStop()
-        if (!requireActivity().isChangingConfigurations) {
+        if (!requireActivity().isChangingConfigurations && !viewModel.isBackgroundListeningActive) {
             viewModel.stopAutoAdvance()
         }
         shakeDetector?.stop()
     }
+
+    override fun keepsPlayingWhenStopped() = viewModel.isBackgroundListeningActive
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -165,6 +169,15 @@ class ReviewerFragment :
         }
 
         viewModel.legacyJsApi.attach(this)
+
+        // started while the screen is visible, when auto advance or the setting is turned on
+        viewModel.isBackgroundListeningActiveFlow.collectInViewLifecycle(Lifecycle.State.CREATED) { isActive ->
+            if (isActive) {
+                BackgroundListening.start(requireContext())
+            } else {
+                BackgroundListening.stop(requireContext())
+            }
+        }
 
         setupBindings()
         setupImmersiveMode()

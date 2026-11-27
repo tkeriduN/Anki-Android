@@ -59,6 +59,7 @@
     <string name="show_deck_title_key">showDeckTitle</string>
     <string name="show_answer_feedback_key">showAnswerFeedback</string>
     <string name="empty_preview_decks_on_exit_key">emptyPreviewDecksOnExit</string>
+    <string name="continue_auto_advance_in_background_key">continueAutoAdvanceInBackground</string>
     <string name="pref_review_category_key">reviewCategory</string>
     <!-- App bar buttons -->
     <string name="pref_app_bar_buttons_screen_key">appBarButtonsScreen</string>

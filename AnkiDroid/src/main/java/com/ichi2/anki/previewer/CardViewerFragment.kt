@@ -172,10 +172,13 @@ abstract class CardViewerFragment(
         // (see CardViewerViewModel.cardMediaPlayer). We can skip the explicit
         // shutdown here.
         if (activity?.isFinishing == true) return
-        if (!requireActivity().isChangingConfigurations) {
+        if (!requireActivity().isChangingConfigurations && !keepsPlayingWhenStopped()) {
             viewModel.setSoundPlayerEnabled(false)
         }
     }
+
+    /** Whether the media of the card keeps playing while the screen is off or the app is in the background */
+    protected open fun keepsPlayingWhenStopped(): Boolean = false
 
     override fun onDestroyView() {
         super.onDestroyView()

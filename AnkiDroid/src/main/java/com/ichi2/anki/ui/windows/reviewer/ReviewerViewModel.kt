@@ -2,6 +2,7 @@
 
 package com.ichi2.anki.ui.windows.reviewer
 
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import anki.collection.OpChanges
@@ -12,10 +13,12 @@ import com.ichi2.anki.AbstractFlashcardViewer.Companion.RESULT_NO_MORE_CARDS
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Flag
+import com.ichi2.anki.R
 import com.ichi2.anki.Reviewer
 import com.ichi2.anki.asyncIO
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.cardviewer.appendNoSuggestAttributes
+import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.destinations.BrowserDestination
@@ -64,6 +67,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -167,6 +174,23 @@ class ReviewerViewModel(
     private var mutationSignal = CompletableDeferred<Unit>()
 
     val isAutoAdvanceEnabledFlow = MutableStateFlow(autoAdvance.isEnabled)
+
+    /** Value of the 'Continue auto advance in the background' setting */
+    val isBackgroundListeningEnabledFlow = MutableStateFlow(repository.isBackgroundListeningEnabled)
+
+    /**
+     * Whether auto advance keeps running while the screen is off or the app is in the background:
+     * auto advance is on, and 'Continue auto advance in the background' is enabled.
+     *
+     * @see BackgroundListeningService
+     */
+    val isBackgroundListeningActiveFlow: StateFlow<Boolean> =
+        combine(isAutoAdvanceEnabledFlow, isBackgroundListeningEnabledFlow) { autoAdvance, background ->
+            autoAdvance && background
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val isBackgroundListeningActive: Boolean
+        get() = isAutoAdvanceEnabledFlow.value && isBackgroundListeningEnabledFlow.value
     val answerButtonsNextTimeFlow: MutableStateFlow<AnswerButtonsNextTime?> = MutableStateFlow(null)
     private val shouldShowNextTimes = asyncIO { repository.getShouldShowNextTimes() }
 
@@ -188,6 +212,9 @@ class ReviewerViewModel(
         cardMediaPlayer.setOnMediaGroupCompletedListener {
             if (!autoAdvance.shouldWaitForAudio()) return@setOnMediaGroupCompletedListener
             startAutoAdvanceCountdown()
+        }
+        viewModelScope.launch {
+            BackgroundListening.stopRequests.collect { onBackgroundListeningStopRequested() }
         }
     }
 
@@ -224,6 +251,7 @@ class ReviewerViewModel(
      * @see emptyPreviewDeck
      */
     override fun onCleared() {
+        BackgroundListening.stop(appContext)
         val deckId = studiedDeckId ?: return
         if (!repository.shouldEmptyPreviewDecksOnExit) return
         // viewModelScope is canceled at this point
@@ -531,6 +559,42 @@ class ReviewerViewModel(
                 autoAdvance.cancelQuestionAndAnswerActionJobs()
             } else {
                 restartAutoAdvanceCountdown()
+            }
+        }
+    }
+
+    /** Updates the state of the setting, which may have been changed while the screen was in the background */
+    fun refreshBackgroundListeningSetting() {
+        isBackgroundListeningEnabledFlow.value = repository.isBackgroundListeningEnabled
+    }
+
+    private suspend fun toggleBackgroundListening() {
+        Timber.v("ReviewerViewModel::toggleBackgroundListening")
+        val isEnabled = !repository.isBackgroundListeningEnabled
+        repository.isBackgroundListeningEnabled = isEnabled
+        isBackgroundListeningEnabledFlow.value = isEnabled
+        val message =
+            if (isEnabled) {
+                R.string.background_listening_enabled
+            } else {
+                R.string.background_listening_disabled
+            }
+        actionFeedbackFlow.emit(appContext.getString(message))
+    }
+
+    /**
+     * The 'Stop' action of the notification of [BackgroundListeningService]:
+     * turns off auto advance and silences the card.
+     */
+    private fun onBackgroundListeningStopRequested() {
+        Timber.i("ReviewerViewModel::onBackgroundListeningStopRequested")
+        launchCatchingIO {
+            actionsMutex.withLock {
+                autoAdvance.isEnabled = false
+                isAutoAdvanceEnabledFlow.value = false
+                stopAutoAdvance()
+                cardMediaPlayer.stop()
+                eval.emit(PAUSE_HTML_MEDIA_JS)
             }
         }
     }
@@ -854,6 +918,7 @@ class ReviewerViewModel(
                     ViewerAction.RESCHEDULE_NOTE -> launchSetDueDate()
                     ViewerAction.RESET_PROGRESS -> launchResetProgress()
                     ViewerAction.TOGGLE_AUTO_ADVANCE -> toggleAutoAdvance()
+                    ViewerAction.TOGGLE_BACKGROUND_LISTENING -> toggleBackgroundListening()
                     ViewerAction.BURY_NOTE -> buryNote()
                     ViewerAction.BURY_CARD -> buryCard()
                     ViewerAction.SUSPEND_NOTE -> suspendNote()
@@ -968,5 +1033,9 @@ class ReviewerViewModel(
     companion object {
         private const val KEY_PREVIOUS_CARD_ID = "key_previous_card_id"
         private const val KEY_COUNTS = "counts"
+
+        /** Pauses the `<audio>` and `<video>` elements of the card, e.g. ones played by its template */
+        @VisibleForTesting
+        const val PAUSE_HTML_MEDIA_JS = "document.querySelectorAll('audio, video').forEach(media => media.pause());"
     }
 }

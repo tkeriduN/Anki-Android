@@ -79,6 +79,13 @@
             android:defaultValue="false"
             />
 
+        <SwitchPreferenceCompat
+            android:key="@string/continue_auto_advance_in_background_key"
+            android:title="@string/continue_auto_advance_in_background"
+            android:summary="@string/continue_auto_advance_in_background_summ"
+            android:defaultValue="false"
+            />
+
         <Preference
             android:key="@string/answer_buttons_settings_key"
             android:title="@string/answer_buttons"

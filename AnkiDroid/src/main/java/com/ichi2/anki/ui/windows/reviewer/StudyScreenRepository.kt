@@ -22,6 +22,11 @@ class StudyScreenRepository(
     var isRecordVoiceEnabled by prefs.booleanPref(PREF_RECORD_VOICE_ENABLED, false)
     val isHtmlTypeAnswerEnabled get() = prefs.isHtmlTypeAnswerEnabled
     val shouldEmptyPreviewDecksOnExit get() = prefs.emptyPreviewDecksOnExit
+    var isBackgroundListeningEnabled
+        get() = prefs.continueAutoAdvanceInBackground
+        set(value) {
+            prefs.continueAutoAdvanceInBackground = value
+        }
 
     init {
         val actions =

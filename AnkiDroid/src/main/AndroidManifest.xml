@@ -38,6 +38,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Disabled on Play Store -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
@@ -450,6 +451,10 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
+        <service
+            android:name="com.ichi2.anki.ui.windows.reviewer.BackgroundListeningService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false"

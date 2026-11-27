@@ -3,4 +3,16 @@
 <resources>
     <string name="empty_preview_decks_on_exit" translatable="false">Empty preview decks on exit</string>
     <string name="empty_preview_decks_on_exit_summ" translatable="false">When the study screen is closed, return the cards of a filtered deck that doesn\'t reschedule to their home decks</string>
+
+    <string name="continue_auto_advance_in_background" translatable="false">Continue auto advance in the background</string>
+    <string name="continue_auto_advance_in_background_summ" translatable="false">Keep studying with auto advance while the screen is off or another app is open. A notification is shown until auto advance is turned off</string>
+    <string name="toggle_background_listening" translatable="false">Toggle background listening</string>
+    <string name="enable_background_listening" translatable="false">Enable background listening</string>
+    <string name="disable_background_listening" translatable="false">Disable background listening</string>
+    <string name="background_listening_enabled" translatable="false">Auto advance continues in the background</string>
+    <string name="background_listening_disabled" translatable="false">Auto advance stops in the background</string>
+    <string name="background_listening_channel" translatable="false">Background listening</string>
+    <string name="background_listening_notification_title" translatable="false">Auto advance is running</string>
+    <string name="background_listening_notification_text" translatable="false">Studying continues while the screen is off</string>
+    <string name="background_listening_stop" translatable="false">Stop</string>
 </resources>
